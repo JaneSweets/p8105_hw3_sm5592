@@ -35,7 +35,7 @@ data("instacart") # import dataset
 
 The data set `instacart` contains `r nrow(instacart)` observations and `r ncol(instacart)` variables related to the information of `r instacart |> pull(order_id) |> unique() |> length()` orders of `r instacart |> pull(user_id) |> unique() |> length()` users and they all belong to the train set. Key information includes the time of the order (`order_dow`, `order_hour_of_day`) and the location of the product (`aisle_id`, `aisle`, `department_id`, `department`).
 
- - How many aisles are there, and which aisles are the most items ordered from?
+ * How many aisles are there, and which aisles are the most items ordered from?
  
  There are `r instacart |> pull(aisle_id) |> unique() |> length()` aisles. The number of items ordered from each aisle is illustrated below:
  
@@ -43,7 +43,7 @@ The data set `instacart` contains `r nrow(instacart)` observations and `r ncol(i
  
  So the top six aisles from which the most items ordered are: `r instacart |> count(aisle) |> arrange(desc(n)) |> head() |> pull(aisle)`.
 
- - Make a plot that shows the number of items ordered in each aisle, limiting this to aisles with more than 10000 items ordered. Arrange aisles sensibly, and organize your plot so others can read it.
+ * Make a plot that shows the number of items ordered in each aisle, limiting this to aisles with more than 10000 items ordered. Arrange aisles sensibly, and organize your plot so others can read it.
 ```{r}
 instacart |> 
   count(aisle) |> 
@@ -54,7 +54,7 @@ instacart |>
   theme(axis.text.x = element_text(angle = 45)) # rotate the x-axis labels
 ```
  
- - Make a table showing the three most popular items in each of the aisles “baking ingredients”, “dog food care”, and “packaged vegetables fruits”. Include the number of times each item is ordered in your table.
+ * Make a table showing the three most popular items in each of the aisles “baking ingredients”, “dog food care”, and “packaged vegetables fruits”. Include the number of times each item is ordered in your table.
 ```{r}
 instacart |> 
   filter(aisle %in% c("baking ingredients", "dog food care", "packaged vegetables fruits")) |> 
@@ -64,7 +64,7 @@ instacart |>
   knitr::kable()
 ```
  
- - Make a table showing the mean hour of the day at which Pink Lady Apples and Coffee Ice Cream are ordered on each day of the week; format this table for human readers (i.e. produce a 2 x 7 table).
+ * Make a table showing the mean hour of the day at which Pink Lady Apples and Coffee Ice Cream are ordered on each day of the week; format this table for human readers (i.e. produce a 2 x 7 table).
 ```{r}
 instacart |> 
   filter(product_name %in% c("Pink Lady Apples", "Coffee Ice Cream")) |> 
@@ -74,7 +74,172 @@ instacart |>
     names_from = order_dow,
     values_from = mean_hour
   ) |> 
+  knitr::kable(digits = 2)
+```
+ 
+# Problem 2
+
+First, do some data cleaning:
+```{r}
+data("brfss_smart2010") # import data set
+
+# data cleaning
+problem2_df = 
+  brfss_smart2010 |>
+  janitor::clean_names() |> # clean names of variables
+  mutate(state = locationabbr) |> # change names
+  separate( # only retain the county part to remove duplicate info
+    locationdesc,
+    into = c("state2", "county"),
+    sep = " - "
+  ) |>
+  select(-state2) |> 
+  filter( # include only the interested topic and responses
+    topic == "Overall Health", 
+    response %in% c("Excellent", "Very good", "Good", "Fair", "Poor")
+    ) |> 
+  mutate(response = factor(response, levels = c("Poor", "Fair", "Good", "Very good", "Excellent"), ordered = T)) # order responses
+```
+
+Based on the resulting data set, the following questions could be answered:
+
+ * In 2002, which states were observed at 7 or more locations? What about in 2010?
+ 
+ The states observed at 7 or more locations in 2002 and 2010 and the number of locations are illustrated in the table below:
+```{r}
+n_location_df = 
+  problem2_df |> 
+  group_by(year, state) |> 
+  summarise(n_locations = n_distinct(county)) |> 
+  filter(n_locations >= 7, year %in% c(2002, 2010)) |> 
+  arrange(year, desc(n_locations))
+
+n_location_df |> 
   knitr::kable()
 ```
  
+ So, there are `r n_location_df |> filter(year == 2002) |> nrow()` states (`r n_location_df |> filter(year == 2002) |> pull(state) |> unique()`) observed at 7 or more locations in 2002, there are `r n_location_df |> filter(year == 2010) |> nrow()` states (`r n_location_df |> filter(year == 2010) |> pull(state) |> unique()`) observed at 7 or more locations in 2010.
  
+ * Construct a data set that is limited to `Excellent` responses, and contains, year, state, and a variable that averages the `data_value` across locations within a state.
+ 
+```{r}
+excellent_df =
+  problem2_df |> 
+  filter(response == "Excellent") |> 
+  group_by(year, state) |> 
+  summarise(mean_value = mean(data_value))
+```
+ 
+ The resulting data set contains `r nrow(excellent_df)` observations and `r ncol(excellent_df)` variables.
+ 
+ Then, make a “spaghetti” plot of this average value over time within a state.
+ 
+```{r}
+excellent_df |> 
+  ggplot(aes(x = year, y = mean_value, group = state, color = state)) + 
+  geom_line()
+```
+ 
+ * Make a two-panel plot showing, for the years 2006, and 2010, distribution of `data_value` for responses (“Poor” to “Excellent”) among locations in NY State.
+ 
+```{r}
+problem2_df |> 
+  filter(year %in% c(2006, 2010), state == "NY") |> 
+  ggplot(aes(x = county, y = data_value)) +
+  geom_violin() +
+  facet_grid(year ~ .) +
+  theme(axis.text.x = element_text(angle = 30)) # rotate the x-axis labels
+```
+ 
+# Problem 3
+
+Load, tidy, merge, and otherwise organize the data sets.
+```{r}
+demographics_df =
+  read_csv("data/nhanes_covar.csv", skip = 4) |> # skip the first 4 rows
+  janitor::clean_names() |> 
+  drop_na() |> # exclude participants with missing demographic data
+  filter(age >= 21) |> #include only those 21 or more than 21 years old
+  mutate( # replace numbers with meaning and order
+    sex = case_match(
+      sex,
+      1 ~ "male",
+      2 ~ "female"
+    ),
+    education = factor(
+      case_match(
+        education,
+        1 ~ "Less than high school",
+        2 ~ "High school equivalent",
+        3 ~ "More than high school"
+      ),
+      labels = c("Less than high school", "High school equivalent", "More than high school"), ordered = T)
+  )
+
+accelerometer_df = 
+  read_csv("data/nhanes_accel.csv") |> 
+  janitor::clean_names() |> 
+  pivot_longer(
+    min1:min1440,
+    names_to = "minute",
+    values_to = "mims",
+    names_prefix = "min"
+  ) |> 
+  mutate(
+    minute = as.numeric(minute)
+  )
+
+result_df = 
+  demographics_df |> 
+  left_join(accelerometer_df)
+```
+
+So, the final dataset contains `r nrow(result_df)` observations and `r ncol(result_df)` variables related to 1440 minutes of MIMS value of `r result_df |> pull(seqn) |> unique() |> length()` participants.
+
+Produce a reader-friendly table for the number of men and women in each education category.
+```{r}
+demographics_df |> 
+  count(education, sex) |> 
+  knitr::kable()
+```
+
+So, most participants have an education background more than high school, and female tend to have received higher education than male.
+
+Create a visualization of the age distributions for men and women in each education category.
+```{r}
+demographics_df |> 
+  ggplot(aes(x = education, y = age)) +
+  geom_violin() +
+  facet_grid(sex ~ .)
+```
+
+It could be concluded that younger people tend to receive higher education. This trend is more obvious for female than male.
+
+Using the tidied dataset, aggregate across minutes to create a total activity variable for each participant. 
+```{r}
+activity_df = 
+  result_df |> 
+  group_by(seqn, sex, age, education) |> 
+  summarise(activity = sum(mims))
+```
+
+Plot these total activities against age.
+```{r}
+activity_df |> 
+  ggplot(aes(x = age, y = activity, color = sex)) +
+  geom_point() +
+  geom_smooth() +
+  facet_grid(education ~ .)
+```
+
+Make a three-panel plot that shows the 24-hour activity time courses for each education level and use color to indicate sex.
+```{r}
+result_df |> 
+  mutate(hour = round((minute - 1) / 60) + 1) |> 
+  group_by(seqn, sex, age, education, hour) |> 
+  summarise(activity_hour = sum(mims)) |> 
+  ggplot(aes(x = hour, y = activity_hour, color = sex)) +
+  geom_point() +
+  geom_smooth() +
+  facet_grid(education ~ .)
+```
