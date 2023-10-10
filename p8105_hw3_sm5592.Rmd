@@ -46,12 +46,14 @@ The data set `instacart` contains `r nrow(instacart)` observations and `r ncol(i
  * Make a plot that shows the number of items ordered in each aisle, limiting this to aisles with more than 10000 items ordered. Arrange aisles sensibly, and organize your plot so others can read it.
 ```{r}
 instacart |> 
-  count(aisle) |> 
-  arrange(desc(n)) |>
-  filter(n > 20000) |> 
-  ggplot(aes(x = aisle, y = n)) +
+  count(department, aisle) |> 
+  mutate(department = fct_reorder(department, n)) |>
+  filter(n > 10000) |> 
+  ggplot(aes(x = department, y = n, fill = aisle)) +
   geom_bar(stat = "identity") +
-  theme(axis.text.x = element_text(angle = 45)) # rotate the x-axis labels
+  theme(
+    axis.text.x = element_text(angle = 45), # rotate the x-axis labels
+    legend.position = "right")
 ```
  
  * Make a table showing the three most popular items in each of the aisles “baking ingredients”, “dog food care”, and “packaged vegetables fruits”. Include the number of times each item is ordered in your table.
@@ -137,7 +139,8 @@ excellent_df =
 ```{r}
 excellent_df |> 
   ggplot(aes(x = year, y = mean_value, group = state, color = state)) + 
-  geom_line()
+  geom_line() +
+  theme(legend.position = "right")
 ```
  
  * Make a two-panel plot showing, for the years 2006, and 2010, distribution of `data_value` for responses (“Poor” to “Excellent”) among locations in NY State.
@@ -200,6 +203,10 @@ Produce a reader-friendly table for the number of men and women in each educatio
 ```{r}
 demographics_df |> 
   count(education, sex) |> 
+  pivot_wider(
+    names_from = sex,
+    values_from = n
+  ) |> 
   knitr::kable()
 ```
 
