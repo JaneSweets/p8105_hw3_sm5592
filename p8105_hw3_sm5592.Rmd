@@ -14,8 +14,8 @@ library(grid)
 library(p8105.datasets) # for loading datasets
 
 knitr::opts_chunk$set(
-  fig.width = 6,
-  fig.asp = .6, # width / height
+  fig.width = 8,
+  fig.asp = .8, # width / height
   out.width = "90%"
 )
 
